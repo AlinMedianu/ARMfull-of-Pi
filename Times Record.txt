@@ -1,0 +1,124 @@
+Starting project:
+
+Time taken to calculate Pi: 70
+Time taken by printf to display Pi: 71
+Time taken by ItoA_Magic to display Pi: 35
+
+Time taken to calculate Pi with the inside of the loop in asm: 95
+
+unsigned r0 = 0;
+int r1;
+float s0 = 1.0f, s1, s2;
+__asm
+{
+	MOV r1, &darts
+}
+for (int i = 0; i < dartsThrown; ++i)
+{	
+	__asm
+	{
+		VLDR.F32 	s1, [r1]
+		ADD 		r1, 4
+		VLDR.F32 	s2, [r1]
+		ADD 		r1, 4
+		VMUL.F32 	s1, s1
+		VMLA.F32  	s1, s2, s2	
+		VCMP.F32 	s1, s0
+		VMRS 		APSR_nzcv, FPSCR
+		IT 		LE 		
+		ADDLE 		r0, 1
+	}
+}
+Pi_Approx = (4.0F * (float)r0) / (float)dartsThrown;
+
+Time taken to calculate Pi in asm: 111
+
+unsigned r0 = 0;
+int r1 = 0, r2;
+float s0 = 1.0f, s1, s2;
+__asm
+{
+			MOV 		r2, &darts					
+	FOR:		VLDR.F32 	s1, [r2]
+			ADD 		r2, 4
+			VLDR.F32 	s2, [r2]
+			ADD 		r2, 4
+			VMUL.F32 	s1, s1
+			VMLA.F32  	s1, s2, s2	
+			VCMP.F32 	s1, s0
+			VMRS 		APSR_nzcv, FPSCR
+			IT 		LE 		
+			ADDLE 		r0, 1
+			ADD 		r1, 1
+			CMP 		r1, dartsThrown
+			BLT 		FOR
+			LSLS 		r0, 2
+			VMOV.F32 	s0, r0
+			VMOV.F32	s1, dartsThrown
+			VDIV.F32	Pi_Approx, s0, s1
+}
+
+Time taken to calculate Pi with rearranged variables
+(this is actually what produced the speed up somehow) and 
+VCVT and VMUL instead of LSLS and VDIV at the end: 56
+
+unsigned r0 = 0, r1 = 0, r2;
+const float s0 = 1.0f, s1 = 4.0f / dartsThrown;
+float s2, s3, s4;
+__asm
+{
+			MOV 			r2, &darts					
+	FOR:		VLDR.F32 		s2, [r2]
+			ADD 			r2, 4
+			VLDR.F32 		s3, [r2]
+			ADD 			r2, 4
+			VMUL.F32 		s2, s2
+			VMLA.F32  		s2, s3, s3	
+			VCMP.F32 		s2, s0
+			VMRS 			APSR_nzcv, FPSCR
+			IT 			LE 		
+			ADDLE 			r1, 1
+			ADD 			r0, 1
+			CMP 			r0, dartsThrown
+			BLT 			FOR
+			VMOV.F32 		s4, r1
+			VCVT.F32.U32 		s4, s4
+			VMUL.F32		Pi_Approx, s4, s1
+}
+
+Time taken to calculate Pi using the memory address as the loop counter
+(when r2 > r1 = &darts + dartsThrown * 8, exit the loop, and r2 is &darts initially
+and I add 4 to it to get to the next element in the array): 51
+
+const unsigned r0 = 4, r1 = 1;
+unsigned r2 = 0, r3 = dartsThrown << 3, r4;
+const float s0 = 1.0f, s1 = 4.0f / dartsThrown;
+float s2, s3, s4;
+__asm
+{
+			MOV 				r4, &darts	
+			ADD 				r3, r4
+	FOR:		VLDR.F32 			s2, [r4]
+			ADD 				r4, r0
+			VLDR.F32 			s3, [r4]
+			ADD 				r4, r0
+			VMUL.F32 			s2, s2
+			VMLA.F32  			s2, s3, s3	
+			VCMP.F32 			s2, s0
+			VMRS 				APSR_nzcv, FPSCR
+			IT 				LE 		
+			ADDLE 				r2, r1
+			CMP 				r4, r3
+			BLT 				FOR
+			VMOV.F32 			s4, r2
+			VCVT.F32.U32 			s4, s4
+			VMUL.F32			Pi_Approx, s4, s1
+}
+
+Final results:
+
+Time taken to calculate Pi (original): 62
+Time taken to calculate Pi: 48
+Time taken by printf to display Pi: 70
+Time taken by ItoA_Magic to display Pi (original): 35
+Time taken by ItoA_Magic to display Pi: 35                          
